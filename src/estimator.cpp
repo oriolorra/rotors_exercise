@@ -83,9 +83,9 @@ EstimatorNode::EstimatorNode() {
   precTick = 0;
   ticks = 0;
 
-  sigma_nx = pow(0.1,2);
-  sigma_nz = pow(0.5, 2);
-  sigma_nu = pow(0.5,2);
+  sigma_nx = pow(10,2);
+  sigma_nz = pow(0.001, 2);
+  sigma_nu = pow(2,2);
 
   x_t(0) = 0;
   x_t(1) = 0;
@@ -128,7 +128,7 @@ void EstimatorNode::Publish()
 void EstimatorNode::PoseCallback(
     const geometry_msgs::PoseStampedConstPtr& pose_msg) {
 
-  if(count > 2500){
+  if(count == 2500){
 
       ROS_INFO_ONCE("Estimator got first POSE message.");
       msgPose_.header.stamp = pose_msg->header.stamp;
@@ -147,12 +147,10 @@ void EstimatorNode::PoseCallback(
       x_t = x_predicted + K * (z_t-z_predicted);
       P = P_predicted - K * H * P_predicted;
 
-      x_predicted = x_t;
-
       //update Pose predicted
-      msgPose_.pose.position.x = x_t[0];//(float)z_predicted(0);
-      msgPose_.pose.position.y = x_t[1];//(float)z_predicted(1);
-      msgPose_.pose.position.z = x_t[2];//(float)z_predicted(3);
+      msgPose_.pose.position.x = x_t[0];
+      msgPose_.pose.position.y = x_t[1];
+      msgPose_.pose.position.z = x_t[2];
 
       Publish();
   }
@@ -170,23 +168,26 @@ void EstimatorNode::ImuCallback(
 
   getTime();
 
-  if( count <= 2500){
+  if( count <= 2499){
       count++;
       if(count >= 900){
 
-          bias[0] = (bias[0] + u(0));
-          bias[1] = (bias[1] + u(1));
-          bias[2] = (bias[2] + u(2));
           if(count == 2500){
-              bias[0] = bias[0]/count;
-              bias[1] = bias[1]/count;
-              bias[2] = bias[2]/count; // show 16.0, and must be 9.8 approx
+              ROS_INFO_STREAM ("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" );
+              bias[0] = bias[0]/(count-900);
+              bias[1] = bias[1]/(count-900);
+              bias[2] = bias[2]/(count-900); // show 16.0, and must be 9.8 approx
+          }else{
+              ROS_INFO_STREAM ("--------------------");
+              bias[0] = (bias[0] + u(0));
+              bias[1] = (bias[1] + u(1));
+              bias[2] = (bias[2] + u(2));
           }
 
           ROS_INFO_STREAM ("Count: " << count );
       }
 
-  }else if (count >2500){
+  }else if (count == 2500){
 
 
       ROS_INFO_STREAM ("BIAS: " << bias );
@@ -270,11 +271,7 @@ int main(int argc, char** argv) {
 
   EstimatorNode estimator_node;
 
-
-  ROS_INFO("BEFORE");
   ros::spin();
 
-
-  ROS_INFO("AFTER");
   return 0;
 }
