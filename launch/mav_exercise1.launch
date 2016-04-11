@@ -33,6 +33,9 @@
 
     <node name="waypoint_publisher_file" pkg="rotors_gazebo" type="waypoint_publisher_file" output="screen" args="$(find rotors_exercise)/resource/exercise1.txt"/>
 
+    <node pkg="rotors_exercise" name="estimator_node" type="estimator_node" output="screen" />
+    <node pkg="rotors_exercise" name="path_node" type="path_node" output="screen" />
+
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
     <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
   </group>
