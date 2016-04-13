@@ -33,10 +33,20 @@
 
     <node name="waypoint_publisher_file" pkg="rotors_gazebo" type="waypoint_publisher_file" output="screen" args="$(find rotors_exercise)/resource/exercise1.txt"/>
 
-    <node pkg="rotors_exercise" name="estimator_node" type="estimator_node" output="screen" />
+    <node pkg="rotors_exercise" name="estimator_node" type="estimator_node" output="screen">
+	 <param name="sigma_nx" value="1" />
+	 <param name="sigma_nz" value="1" />
+	 <param name="sigma_nu" value="0.004" />
+    </node>
     <node pkg="rotors_exercise" name="path_node" type="path_node" output="screen" />
 
-    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" >
+    <param name="use_gui" value="TRUE"/>
+    </node>
     <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+
+
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rotors_exercise)/launch/display.rviz"/>
   </group>
 </launch>

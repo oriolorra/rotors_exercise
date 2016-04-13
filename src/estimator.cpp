@@ -64,11 +64,14 @@ double count = 0;
 EstimatorNode::EstimatorNode() {
 
 
-  ros::NodeHandle nh;
+  ros::NodeHandle nh("~");
 
   pose_sub_ = nh.subscribe("/firefly/fake_gps/pose",  1, &EstimatorNode::PoseCallback, this);
   imu_sub_  = nh.subscribe("/firefly/imu",            1, &EstimatorNode::ImuCallback, this);
 
+  nh.getParam("sigma_nx", sigma_nx);
+  nh.getParam("sigma_nz", sigma_nz);
+  nh.getParam("sigma_nu", sigma_nu);
 
   pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/firefly/pose", 1);
 
@@ -83,9 +86,9 @@ EstimatorNode::EstimatorNode() {
   precTick = 0;
   ticks = 0;
 
-  sigma_nx = pow(10,2);
-  sigma_nz = pow(0.001, 2);
-  sigma_nu = pow(2,2);
+//  sigma_nx = pow(0.01,2);
+//  sigma_nz = pow(0.001, 2);
+//  sigma_nu = pow(0.04,2);
 
   x_t(0) = 0;
   x_t(1) = 0;
@@ -128,7 +131,7 @@ void EstimatorNode::Publish()
 void EstimatorNode::PoseCallback(
     const geometry_msgs::PoseStampedConstPtr& pose_msg) {
 
-  if(count == 2500){
+  if(count == 300){
 
       ROS_INFO_ONCE("Estimator got first POSE message.");
       msgPose_.header.stamp = pose_msg->header.stamp;
@@ -152,7 +155,7 @@ void EstimatorNode::PoseCallback(
       msgPose_.pose.position.y = x_t[1];
       msgPose_.pose.position.z = x_t[2];
 
-      Publish();
+     // Publish();
   }
 }
 
@@ -168,26 +171,25 @@ void EstimatorNode::ImuCallback(
 
   getTime();
 
-  if( count <= 2499){
+  if( count <= 299){
       count++;
-      if(count >= 900){
 
-          if(count == 2500){
-              ROS_INFO_STREAM ("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" );
-              bias[0] = bias[0]/(count-900);
-              bias[1] = bias[1]/(count-900);
-              bias[2] = bias[2]/(count-900); // show 16.0, and must be 9.8 approx
-          }else{
-              ROS_INFO_STREAM ("--------------------");
-              bias[0] = (bias[0] + u(0));
-              bias[1] = (bias[1] + u(1));
-              bias[2] = (bias[2] + u(2));
-          }
-
-          ROS_INFO_STREAM ("Count: " << count );
+      if(count == 300){
+          ROS_INFO_STREAM ("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" );
+          bias[0] = bias[0]/(count);
+          bias[1] = bias[1]/(count);
+          bias[2] = bias[2]/(count);
+      }else{
+          ROS_INFO_STREAM ("--------------------");
+          bias[0] = (bias[0] + u(0));
+          bias[1] = (bias[1] + u(1));
+          bias[2] = (bias[2] + u(2));
       }
 
-  }else if (count == 2500){
+      ROS_INFO_STREAM ("Count: " << sigma_nu );
+
+
+  }else if (count == 300){
 
 
       ROS_INFO_STREAM ("BIAS: " << bias );
@@ -216,7 +218,7 @@ void EstimatorNode::ImuCallback(
       msgPose_.pose.position.y = z_predicted[1];
       msgPose_.pose.position.z = z_predicted[2];
 
-      Publish();
+     // Publish();
   }
 }
 
