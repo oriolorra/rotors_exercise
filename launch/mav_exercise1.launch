@@ -40,13 +40,10 @@
     </node>
     <node pkg="rotors_exercise" name="path_node" type="path_node" output="screen" />
 
-    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" >
-    <param name="use_gui" value="TRUE"/>
-    </node>
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
     <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
 
-
-
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find rotors_exercise)/launch/display.rviz"/>
+
   </group>
 </launch>
