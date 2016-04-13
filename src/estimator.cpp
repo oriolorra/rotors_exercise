@@ -86,10 +86,6 @@ EstimatorNode::EstimatorNode() {
   precTick = 0;
   ticks = 0;
 
-//  sigma_nx = pow(0.01,2);
-//  sigma_nz = pow(0.001, 2);
-//  sigma_nu = pow(0.04,2);
-
   x_t(0) = 0;
   x_t(1) = 0;
   x_t(2) = 0;
@@ -169,25 +165,22 @@ void EstimatorNode::ImuCallback(
   u(1) = imu_msg ->linear_acceleration.y;
   u(2) = imu_msg ->linear_acceleration.z;
 
-  getTime();
 
   if( count <= 299){
       count++;
 
+      //get BIAS
       if(count == 300){
-          ROS_INFO_STREAM ("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&" );
-          bias[0] = bias[0]/(count);
-          bias[1] = bias[1]/(count);
-          bias[2] = bias[2]/(count);
+          bias[0] = bias[0]/count;
+          bias[1] = bias[1]/count;
+          bias[2] = bias[2]/count;
       }else{
-          ROS_INFO_STREAM ("--------------------");
-          bias[0] = (bias[0] + u(0));
-          bias[1] = (bias[1] + u(1));
-          bias[2] = (bias[2] + u(2));
+          bias[0] = bias[0] + u(0);
+          bias[1] = bias[1] + u(1);
+          bias[2] = bias[2] + u(2);
       }
 
       ROS_INFO_STREAM ("Count: " << sigma_nu );
-
 
   }else if (count == 300){
 
@@ -199,13 +192,14 @@ void EstimatorNode::ImuCallback(
 
       ROS_INFO_STREAM ("U: " << u);
 
-      u(0) = u(0) + bias[0];
-      u(1) = u(1) + bias[1];
+      u(0) = u(0) - bias[0];
+      u(1) = u(1) - bias[1];
       u(2) = u(2) - bias[2];
 
-      //PREDICTION
+      //update matrix F, G, Q
       updateMatrixWithDelta();
 
+      //PREDICTION
       x_predicted = F * x_t + G * u;
       P_predicted = F * P * F.transpose() +  Q;
       z_predicted = H * x_predicted;
@@ -228,20 +222,18 @@ void EstimatorNode::TimedCallback(
    Publish();
 }
 
-void EstimatorNode::getTime(){
+
+void EstimatorNode::updateMatrixWithDelta(){
+
     precTick = ticks;
 
     ticks = (double) cv::getTickCount();
     dT = (ticks - precTick) / cv::getTickFrequency(); //seconds
 
     time += dT;
-}
-
-void EstimatorNode::updateMatrixWithDelta(){
 
     double dt_2 = pow(dT,2);
     double dt_3 = pow(dT,3);
-
 
     Q << 1/2*dt_3, 0, 0, 1/2*dt_2, 0, 0,
          0, 1/2*dt_3, 0, 0, 1/2*dt_2, 0,
