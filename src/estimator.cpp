@@ -28,7 +28,7 @@ Eigen::VectorXd x_predicted(6);
 Eigen::VectorXd x_t(6);
 
 // input Vector
-Eigen::Vector3d u;
+Eigen::VectorXd u(6);
 
 //Covariance of the state
 Eigen::MatrixXd P(6,6);
@@ -57,8 +57,17 @@ Eigen::MatrixXd G(6,3);        //(6,3)
 Eigen::MatrixXd K(6,6);
 
 //IMU bias
-Eigen::Vector3d bias;
+Eigen::Vector3d accBias;
+Eigen::Vector3d gyroBias;
 double count = 0;
+
+//rotate 3d matrix
+Eigen::Vector3d angles;
+Eigen::Vector3d accXYZ;
+Eigen::Matrix3d rotateX;
+Eigen::Matrix3d rotateY;
+Eigen::Matrix3d rotateZ;
+
 
 
 EstimatorNode::EstimatorNode() {
@@ -77,14 +86,24 @@ EstimatorNode::EstimatorNode() {
 
   timer_ = nh.createTimer(ros::Duration(0.1), &EstimatorNode::TimedCallback, this);
 
-  bias[0] = 0.0;
-  bias[1] = 0.0;
-  bias[2] = 0.0;
+  accBias[0] = 0.0;
+  accBias[1] = 0.0;
+  accBias[2] = 0.0;
+
+  gyroBias[0] = 0.0;
+  gyroBias[1] = 0.0;
+  gyroBias[2] = 0.0;
+
+  angles[0] = 0.0;
+  angles[1] = 0.0;
+  angles[2] = 0.0;
+
+  accXYZ[0] = 0.0;
+  accXYZ[1] = 0.0;
+  accXYZ[2] = 0.0;
 
   dT = 0;
-  time = 0;
-  precTick = 0;
-  ticks = 0;
+  lastTime = 0;
 
   x_t(0) = 0;
   x_t(1) = 0;
@@ -110,7 +129,7 @@ EstimatorNode::EstimatorNode() {
        0, sigma_nz, 0,
        0, 0, sigma_nz;
 
-  updateMatrixWithDelta();
+  updateMatrixWithDelta(0.0);
 
 }
 
@@ -132,7 +151,7 @@ void EstimatorNode::PoseCallback(
       ROS_INFO_ONCE("Estimator got first POSE message.");
       msgPose_.header.stamp = pose_msg->header.stamp;
       msgPose_.header.seq = pose_msg->header.seq;
-      msgPose_.header.frame_id =pose_msg->header.frame_id;
+      msgPose_.header.frame_id ="world";
 
       //Data adquisition
       z_t(0) = pose_msg ->pose.position.x;
@@ -164,6 +183,10 @@ void EstimatorNode::ImuCallback(
   u(0) = imu_msg ->linear_acceleration.x;
   u(1) = imu_msg ->linear_acceleration.y;
   u(2) = imu_msg ->linear_acceleration.z;
+  u(3) = imu_msg ->angular_velocity.x;
+  u(4) = imu_msg ->angular_velocity.y;
+  u(5) = imu_msg ->angular_velocity.z;
+
 
 
   if( count <= 299){
@@ -171,36 +194,43 @@ void EstimatorNode::ImuCallback(
 
       //get BIAS
       if(count == 300){
-          bias[0] = bias[0]/count;
-          bias[1] = bias[1]/count;
-          bias[2] = bias[2]/count;
+          accBias[0] = accBias[0]/count;
+          accBias[1] = accBias[1]/count;
+          accBias[2] = accBias[2]/count;
+
+          gyroBias[0] = gyroBias[0]/count;
+          gyroBias[1] = gyroBias[1]/count;
+          gyroBias[2] = gyroBias[2]/count;
       }else{
-          bias[0] = bias[0] + u(0);
-          bias[1] = bias[1] + u(1);
-          bias[2] = bias[2] + u(2);
+          accBias[0] = accBias[0] + u(0);
+          accBias[1] = accBias[1] + u(1);
+          accBias[2] = accBias[2] + u(2);
+
+          gyroBias[0] = gyroBias[0] + u(3);
+          gyroBias[1] = gyroBias[1] + u(4);
+          gyroBias[2] = gyroBias[2] + u(5);
       }
 
-      ROS_INFO_STREAM ("Count: " << sigma_nu );
+      ROS_INFO_STREAM ("Count: " << count );
 
   }else if (count == 300){
 
 
-      ROS_INFO_STREAM ("BIAS: " << bias );
+      ROS_INFO_STREAM ("BIAS: " << accBias );
       msgPose_.header.stamp = imu_msg->header.stamp;
       msgPose_.header.seq = imu_msg->header.seq;
-      msgPose_.header.frame_id =imu_msg->header.frame_id;
+      msgPose_.header.frame_id = "world";
 
       ROS_INFO_STREAM ("U: " << u);
+      accXYZ = rotateAcc();
 
-      u(0) = u(0) - bias[0];
-      u(1) = u(1) - bias[1];
-      u(2) = u(2) - bias[2];
+      ROS_INFO_STREAM ("Acc XYZ: " << accXYZ);
 
       //update matrix F, G, Q
-      updateMatrixWithDelta();
+      updateMatrixWithDelta(msgPose_.header.stamp.nsec);
 
       //PREDICTION
-      x_predicted = F * x_t + G * u;
+      x_predicted = F * x_t + G * accXYZ;
       P_predicted = F * P * F.transpose() +  Q;
       z_predicted = H * x_predicted;
 
@@ -223,14 +253,13 @@ void EstimatorNode::TimedCallback(
 }
 
 
-void EstimatorNode::updateMatrixWithDelta(){
+void EstimatorNode::updateMatrixWithDelta(double time){
 
-    precTick = ticks;
+    dT = time - lastTime;
+    dT = dT*1E-9;
+    lastTime = time;
 
-    ticks = (double) cv::getTickCount();
-    dT = (ticks - precTick) / cv::getTickFrequency(); //seconds
-
-    time += dT;
+    ROS_INFO_STREAM ("TIME: " << dT );
 
     double dt_2 = pow(dT,2);
     double dt_3 = pow(dT,3);
@@ -259,6 +288,36 @@ void EstimatorNode::updateMatrixWithDelta(){
          0, 0, dT;
 }
 
+Eigen::Vector3d EstimatorNode::rotateAcc(){
+
+    Eigen::Vector3d res;
+    Eigen::Vector3d acc;
+
+    acc(0) = u(0) - accBias(0);
+    acc(1) = u(1) - accBias(1);
+    acc(2) = u(2) - accBias(2);
+
+    angles(0) = angles(0) + (u(3)-gyroBias(0))*dT;
+    angles(1) = angles(1) + (u(4)-gyroBias(1))*dT;
+    angles(2) = angles(2) + (u(5)-gyroBias(2))*dT;
+
+    ROS_INFO_STREAM ("Angles: " << angles);
+    rotateX << 1, 0, 0,
+               0, cos(angles(0)), -sin(angles(0)),
+               0, sin(angles(0)), cos(angles(0));
+
+    rotateY << cos(angles(1)), 0, -sin(angles(1)),
+               0, 1, 0,
+               sin(angles(1)), 0, cos(angles(1));
+
+    rotateZ << cos(angles(2)), -sin(angles(2)), 0,
+               sin(angles(2)), cos(angles(2)), 0,
+               0, 0, 1;
+
+    res = rotateZ*rotateY*rotateX * acc;
+
+    return res;
+}
 
 int main(int argc, char** argv) {
   ros::init(argc, argv, "estimator");

@@ -26,7 +26,7 @@ void GetPathNode::poseKFCallback(const geometry_msgs::PoseStampedConstPtr &pose_
 
     msgPose_.header.stamp = pose_msg->header.stamp;
     msgPose_.header.seq = pose_msg->header.seq;
-    msgPose_.header.frame_id =pose_msg->header.frame_id;
+    msgPose_.header.frame_id = "world";
     msgPose_.pose = pose_msg->pose;
 
     msgKFPath_.header.stamp = pose_msg->header.stamp;
@@ -43,7 +43,7 @@ void GetPathNode::fakeGPSCallback(const geometry_msgs::PoseStampedConstPtr &pose
 
     msgPose_.header.stamp = pose_msg->header.stamp;
     msgPose_.header.seq = pose_msg->header.seq;
-    msgPose_.header.frame_id =pose_msg->header.frame_id;
+    msgPose_.header.frame_id = "world";
     msgPose_.pose = pose_msg->pose;
 
     msgGPSPath_.header.stamp = pose_msg->header.stamp;
@@ -59,7 +59,7 @@ void GetPathNode::groundTruthCallback(const geometry_msgs::PoseStampedConstPtr &
 
     msgPose_.header.stamp = pose_msg->header.stamp;
     msgPose_.header.seq = pose_msg->header.seq;
-    msgPose_.header.frame_id =pose_msg->header.frame_id;
+    msgPose_.header.frame_id = "world";
     msgPose_.pose = pose_msg->pose;
 
     msgGTPath_.header.stamp = pose_msg->header.stamp;

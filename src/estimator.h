@@ -30,16 +30,17 @@
 #include <stdio.h>
 
 #include <ros/ros.h>
-
+#include <math.h>
 
 //OpenCV
 #include <opencv/cv.h>
 
 //#include <ros/TimerEvent.h>
-
 #include <geometry_msgs/PoseStamped.h>
 #include <sensor_msgs/Imu.h>
 
+
+#define PI 3.14159265
 
 using namespace Eigen;
 
@@ -61,9 +62,7 @@ class EstimatorNode {
   double sigma_nu;
 
   double dT;
-  double time;
-  double precTick;
-  double ticks;
+  double lastTime;
 
   // subscribers
   ros::Subscriber pose_sub_;
@@ -83,9 +82,9 @@ class EstimatorNode {
   void TimedCallback(
       const ros::TimerEvent& e);
 
-  void updateMatrixWithDelta();
+  void updateMatrixWithDelta(double time);
 
-  void getTime();
+  Eigen::Vector3d rotateAcc();
 };
 
 
