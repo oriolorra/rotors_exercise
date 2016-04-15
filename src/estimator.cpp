@@ -170,7 +170,6 @@ void EstimatorNode::PoseCallback(
       msgPose_.pose.position.y = x_t[1];
       msgPose_.pose.position.z = x_t[2];
 
-     // Publish();
   }
 }
 
@@ -183,6 +182,7 @@ void EstimatorNode::ImuCallback(
   u(0) = imu_msg ->linear_acceleration.x;
   u(1) = imu_msg ->linear_acceleration.y;
   u(2) = imu_msg ->linear_acceleration.z;
+
   u(3) = imu_msg ->angular_velocity.x;
   u(4) = imu_msg ->angular_velocity.y;
   u(5) = imu_msg ->angular_velocity.z;
@@ -242,7 +242,6 @@ void EstimatorNode::ImuCallback(
       msgPose_.pose.position.y = z_predicted[1];
       msgPose_.pose.position.z = z_predicted[2];
 
-     // Publish();
   }
 }
 
@@ -258,9 +257,6 @@ void EstimatorNode::updateMatrixWithDelta(double time){
     dT = time - lastTime;
     dT = dT*1E-9;
     lastTime = time;
-
-    ROS_INFO_STREAM ("TIME: " << dT );
-
     double dt_2 = pow(dT,2);
     double dt_3 = pow(dT,3);
 
