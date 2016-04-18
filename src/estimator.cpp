@@ -66,6 +66,7 @@ Eigen::Matrix3d rotateX;
 Eigen::Matrix3d rotateY;
 Eigen::Matrix3d rotateZ;
 
+bool isGPS = false;
 
 
 EstimatorNode::EstimatorNode() {
@@ -147,6 +148,8 @@ void EstimatorNode::PoseCallback(
 
   if(count == 300){
 
+      isGPS = true;
+
       ROS_INFO_ONCE("Estimator got first POSE message.");
       msgPose_.header.stamp = pose_msg->header.stamp;
       msgPose_.header.seq = pose_msg->header.seq;
@@ -199,7 +202,7 @@ void EstimatorNode::ImuCallback(
       if(count == 300){
           accBias[0] = accBias[0]/count;
           accBias[1] = accBias[1]/count;
-          accBias[2] = accBias[2]/count;
+          accBias[2] = (accBias[2]/count);
 
           gyroBias[0] = gyroBias[0]/count;
           gyroBias[1] = gyroBias[1]/count;
@@ -207,7 +210,7 @@ void EstimatorNode::ImuCallback(
       }else{
           accBias[0] = accBias[0] + u(0);
           accBias[1] = accBias[1] + u(1);
-          accBias[2] = accBias[2] + u(2);
+          accBias[2] = accBias[2] + u(2) - GRAVETAT;
 
           gyroBias[0] = gyroBias[0] + u(3);
           gyroBias[1] = gyroBias[1] + u(4);
@@ -218,42 +221,42 @@ void EstimatorNode::ImuCallback(
 
   }else if (count == 300){
 
+      if (imu_msg->header.stamp >= msgPose_.header.stamp){
 
-      //ROS_INFO_STREAM ("BIAS: " << accBias );
-      msgPose_.header.stamp = imu_msg->header.stamp;
-      msgPose_.header.seq = imu_msg->header.seq;
-      msgPose_.header.frame_id = "world";
+          msgPose_.header.stamp = imu_msg->header.stamp;
+          msgPose_.header.seq = imu_msg->header.seq;
+          msgPose_.header.frame_id = "world";
 
-      accXYZ = rotateAcc();
 
-      ROS_INFO_STREAM ("U: " << u(0) << u(1) << u(2));
-      ROS_INFO_STREAM ("Bias: " << accBias);
-      ROS_INFO_STREAM ("Acc XYZ: " << accXYZ);
+          //ROS_INFO_STREAM ("U: " << u(0) << u(1) << u(2));
+          //ROS_INFO_STREAM ("Bias: " << accBias);
+          //ROS_INFO_STREAM ("Acc XYZ: " << accXYZ);
 
-      //update matrix F, G, Q
-      updateMatrixWithDelta(msgPose_.header.stamp.nsec);
+          //update matrix F, G, Q
+          updateMatrixWithDelta(msgPose_.header.stamp.nsec);
+          accXYZ = rotateAcc();
 
-      //PREDICTION
-      x_predicted = F * x_t + G * accXYZ;
-      P_predicted = F * P * F.transpose() +  Q;
-      z_predicted = H * x_predicted;
 
-      x_t = x_predicted;
-      P = P_predicted;
+          //PREDICTION
+          x_predicted = F * x_t + G * accXYZ;
+          P_predicted = F * P * F.transpose() +  Q;
+          z_predicted = H * x_predicted;
 
-      //update Pose predicted
-      msgPose_.pose.position.x = x_predicted[0];
-      msgPose_.pose.position.y = x_predicted[1];
-      msgPose_.pose.position.z = x_predicted[2];
+          x_t = x_predicted;
+          P = P_predicted;
 
-      msgPose_.pose.orientation.x = quaternion(0);
-      msgPose_.pose.orientation.y = quaternion(1);
-      msgPose_.pose.orientation.z = quaternion(2);
-      msgPose_.pose.orientation.w = quaternion(3);
+          //update Pose predicted
+          msgPose_.pose.position.x = x_predicted[0];
+          msgPose_.pose.position.y = x_predicted[1];
+          msgPose_.pose.position.z = x_predicted[2];
 
-   //  ROS_INFO_STREAM ("QUATERNION :" << quaternion);
+          msgPose_.pose.orientation.x = quaternion(0);
+          msgPose_.pose.orientation.y = quaternion(1);
+          msgPose_.pose.orientation.z = quaternion(2);
+          msgPose_.pose.orientation.w = quaternion(3);
 
-   // ROS_INFO_STREAM (" X_t (IMU)" << x_t);
+      }
+
   }
 }
 
@@ -278,8 +281,11 @@ void EstimatorNode::updateMatrixWithDelta(double time){
     dT = dT*1E-9;
     lastTime = time;
 
+    ROS_INFO_STREAM ("dT_ 1: " << dT);
+
     double dt_2 = pow(dT,2);
     double dt_3 = pow(dT,3);
+    double dt2 = dt_2 * 1/2;
 
     Q << 1/2*dt_3, 0, 0, 1/2*dt_2, 0, 0,
          0, 1/2*dt_3, 0, 0, 1/2*dt_2, 0,
@@ -307,8 +313,8 @@ void EstimatorNode::updateMatrixWithDelta(double time){
 
 Eigen::Vector3d EstimatorNode::rotateAcc(){
 
-    Eigen::Vector3d res;
     Eigen::Vector3d acc;
+    //double transform = PI/180.0;
 
     acc(0) = u(0) - accBias(0);
     acc(1) = u(1) - accBias(1);
@@ -317,6 +323,9 @@ Eigen::Vector3d EstimatorNode::rotateAcc(){
     angles(0) = angles(0) + (u(3) - gyroBias(0))*dT;
     angles(1) = angles(1) + (u(4) - gyroBias(1))*dT;
     angles(2) = angles(2) + (u(5) - gyroBias(2))*dT;
+
+    ROS_INFO_STREAM ("Angles: " <<  angles);
+    ROS_INFO_STREAM ("dT: " << dT);
 
     rotateX << 1, 0, 0,
                0, cos(angles(0)), -sin(angles(0)),
@@ -330,9 +339,10 @@ Eigen::Vector3d EstimatorNode::rotateAcc(){
                sin(angles(2)), cos(angles(2)), 0,
                0, 0, 1;
 
-    res = (rotateX*rotateY*rotateZ) * acc;
+    acc(2) = acc(2) - GRAVETAT;
+    acc = (rotateX*rotateY*rotateZ) * acc;
 
-    return res;
+    return acc;
 }
 
 int main(int argc, char** argv) {

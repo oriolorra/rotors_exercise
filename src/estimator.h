@@ -41,6 +41,7 @@
 
 
 #define PI 3.14159265
+#define GRAVETAT 9.81
 
 using namespace Eigen;
 
@@ -61,12 +62,18 @@ class EstimatorNode {
   double sigma_nz;
   double sigma_nu;
 
+  Eigen::Vector4d quaternion;
+
+
+ // Eigen::Vector4d orientation;
+
   double dT;
   double lastTime;
 
   // subscribers
   ros::Subscriber pose_sub_;
   ros::Subscriber imu_sub_;
+  ros::Subscriber gt_sub_;
 
   ros::Publisher pose_pub;
   geometry_msgs::PoseStamped msgPose_;
@@ -78,6 +85,9 @@ class EstimatorNode {
 
   void ImuCallback(
       const sensor_msgs::ImuConstPtr& imu_msg);
+
+  void GroundTruthCallback(
+      const geometry_msgs::PoseStampedConstPtr& pose_msg);
 
   void TimedCallback(
       const ros::TimerEvent& e);
