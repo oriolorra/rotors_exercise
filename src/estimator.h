@@ -27,9 +27,13 @@
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Geometry>
 
+
 #include <stdio.h>
 
 #include <ros/ros.h>
+#include <tf/tf.h>
+#include <tf/transform_datatypes.h>
+#include <tf_conversions/tf_eigen.h>
 #include <math.h>
 
 //OpenCV
@@ -64,10 +68,9 @@ class EstimatorNode {
 
   Eigen::Vector4d quaternion;
 
-
- // Eigen::Vector4d orientation;
-
   double dT;
+  double dt_2;
+  double dt_3;
   double lastTime;
 
   // subscribers
