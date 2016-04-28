@@ -135,7 +135,7 @@ EstimatorNode::~EstimatorNode() { }
 void EstimatorNode::Publish()
 {
   //publish your data
-  ROS_INFO("Publishing ...");
+  //ROS_INFO("Publishing ...");
 
   pose_pub.publish(msgPose_);
 }
@@ -196,10 +196,12 @@ void EstimatorNode::ImuCallback(
   if( count <= 299){
       count++;
       //get BIAS
+      //ROS_INFO_STREAM("Count " << count);
       if(count == 300){
           accBias[0] = accBias[0]/count;
           accBias[1] = accBias[1]/count;
           accBias[2] = (accBias[2]/count);
+          ROS_INFO_STREAM("BIAS: " << accBias);
       }else{
           accBias[0] = accBias[0] + u(0);
           accBias[1] = accBias[1] + u(1);
@@ -213,11 +215,10 @@ void EstimatorNode::ImuCallback(
           msgPose_.header.frame_id = "world";
 
           //update matrix F, G, Q
-          updateMatrixWithDelta(msgPose_.header.stamp.sec);
+          updateMatrixWithDelta(msgPose_.header.stamp.toSec());
 
           //ROTATE accelerations
           accXYZ = rotateAcc();
-
 
           //PREDICTION
           x_apriori = F * x_hat + G * accXYZ;
@@ -236,6 +237,9 @@ void EstimatorNode::ImuCallback(
           msgPose_.pose.orientation.y = quaternion(1);
           msgPose_.pose.orientation.z = quaternion(2);
           msgPose_.pose.orientation.w = quaternion(3);
+
+
+         // ROS_INFO_STREAM("X_HAT" << x_hat );
 
   }
 }
@@ -258,7 +262,7 @@ void EstimatorNode::TimedCallback(
 void EstimatorNode::updateMatrixWithDelta(double time){
 
     dT = time - lastTime;
-    dT = dT*1E-9;
+   // dT = dT*1E-9;
     lastTime = time;
 
     dt_2 = 0.5*dT*dT;
@@ -286,6 +290,11 @@ void EstimatorNode::updateMatrixWithDelta(double time){
          dT, 0, 0,
          0, dT, 0,
          0, 0, dT;
+
+//    ROS_INFO_STREAM("dT: " << dT);
+//    ROS_INFO_STREAM("Q: " << Q);
+//    ROS_INFO_STREAM("F: " << F);
+//    ROS_INFO_STREAM("G: " << G);
 }
 
 Eigen::Vector3d EstimatorNode::rotateAcc(){
@@ -308,6 +317,9 @@ Eigen::Vector3d EstimatorNode::rotateAcc(){
     tf::vectorTFToEigen(tf::quatRotate(quat,acc_tf), acc_res);
 
     acc_res(2) = acc_res(2) - GRAVETAT;
+
+//    ROS_INFO_STREAM("ACC: " << acc);
+//    ROS_INFO_STREAM("ACC RES: " << acc_res);
 
     return acc_res;
 }

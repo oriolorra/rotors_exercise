@@ -10,7 +10,7 @@ GetPathNode::GetPathNode(){
 
     KF_sub_  = nh.subscribe("/firefly/pose",            1,  &GetPathNode::poseKFCallback, this);
     GPS_sub_ = nh.subscribe("/firefly/fake_gps/pose",  1, &GetPathNode::fakeGPSCallback, this);
-    GT_sub_  = nh.subscribe("/firefly/groun_truth/pose",            1, &GetPathNode::groundTruthCallback, this);
+    GT_sub_  = nh.subscribe("/firefly/ground_truth/pose",            1, &GetPathNode::groundTruthCallback, this);
 
     KFPath_pub_  =  nh.advertise<nav_msgs::Path>("/firefly/path/kf", 1);
     GPSPath_pub_ =  nh.advertise<nav_msgs::Path>("/firefly/path/gps", 1);
@@ -31,7 +31,7 @@ void GetPathNode::poseKFCallback(const geometry_msgs::PoseStampedConstPtr &pose_
 
     msgKFPath_.header.stamp = pose_msg->header.stamp;
     msgKFPath_.header.seq = pose_msg->header.seq;
-    msgKFPath_.header.frame_id =pose_msg->header.frame_id;
+    msgKFPath_.header.frame_id ="world";
 
     msgKFPath_.poses.push_back(msgPose_);
 }
@@ -48,7 +48,7 @@ void GetPathNode::fakeGPSCallback(const geometry_msgs::PoseStampedConstPtr &pose
 
     msgGPSPath_.header.stamp = pose_msg->header.stamp;
     msgGPSPath_.header.seq = pose_msg->header.seq;
-    msgGPSPath_.header.frame_id =pose_msg->header.frame_id;
+    msgGPSPath_.header.frame_id = "world";
 
     msgGPSPath_.poses.push_back(msgPose_);
 }
@@ -64,7 +64,7 @@ void GetPathNode::groundTruthCallback(const geometry_msgs::PoseStampedConstPtr &
 
     msgGTPath_.header.stamp = pose_msg->header.stamp;
     msgGTPath_.header.seq = pose_msg->header.seq;
-    msgGTPath_.header.frame_id =pose_msg->header.frame_id;
+    msgGTPath_.header.frame_id = "world";
 
     msgGTPath_.poses.push_back(msgPose_);
 }
@@ -75,11 +75,13 @@ void GetPathNode::TimedCallback(const ros::TimerEvent &e){
         isKF = false;
         KFPath_pub_.publish(msgKFPath_);
 
-    }else if(isGPS){
+    }
+    if(isGPS){
         isGPS = false;
         GPSPath_pub_.publish(msgGPSPath_);
 
-    }else if(isGT){
+    }
+    if(isGT){
         isGT = false;
         GTPath_pub_.publish(msgGTPath_);
     }

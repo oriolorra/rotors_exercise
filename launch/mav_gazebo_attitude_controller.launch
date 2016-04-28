@@ -9,7 +9,7 @@
     <!--arg name="world_name" value="$(find rotors_gazebo)/worlds/powerplant.world"/-->
 
     <!-- <arg name="debug" value="true"/> -->
-    <arg name="paused" value="true"/>
+    <arg name="paused" value="false"/>
     <!-- <arg name="gui" value="false"/> -->
   </include>
 
@@ -22,28 +22,15 @@
       <arg name="log_file" value="$(arg log_file)"/>
     </include>
 
-    <node name="lee_position_controller_node" pkg="rotors_control" type="lee_position_controller_node" output="screen">
-      <rosparam command="load" file="$(find rotors_exercise)/resource/lee_controller_$(arg mav_name)_soft.yaml" />
-      <rosparam command="load" file="$(find rotors_exercise)/resource/$(arg mav_name).yaml" />
+    <node name="roll_pitch_yawrate_thrust_controller_node" pkg="rotors_control" type="roll_pitch_yawrate_thrust_controller_node" output="screen">
+      <rosparam
+        command="load" file="$(find rotors_gazebo)/resource/roll_pitch_yawrate_thrust_controller_$(arg mav_name).yaml" />
+      <rosparam command="load" file="$(find rotors_gazebo)/resource/$(arg mav_name).yaml" />
 
       <remap from="odometry" to="/firefly/ground_truth/odometry" />
     </node>
 
-    <node name="hovering_example" pkg="rotors_gazebo" type="hovering_example" output="screen"/>
-
-    <node name="waypoint_publisher_file" pkg="rotors_gazebo" type="waypoint_publisher_file" output="screen" args="$(find rotors_exercise)/resource/exercise1.txt"/>
-
-    <node pkg="rotors_exercise" name="estimator_node" type="estimator_node" output="screen">
-	 <param name="sigma_nx" value="0.5" />
-	 <param name="sigma_nz" value="0.5" />
-	 <param name="sigma_nu" value="0.04" />
-    </node>
-    <node pkg="rotors_exercise" name="path_node" type="path_node" output="screen" />
-
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
     <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
-
-  <!-- node name="rviz" pkg="rviz" type="rviz" args="-d $(find rotors_exercise)/launch/display.rviz"/> -->
-
   </group>
 </launch>

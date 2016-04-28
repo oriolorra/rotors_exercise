@@ -21,6 +21,7 @@
 #include "pid.h"
 
 #define PI 3.14159265
+#define GRAVETAT 9.81
 
 //Period for the control loop 
 float control_loop_period = 0.01;
@@ -331,6 +332,10 @@ int main(int argc, char** argv)
             //roll_cmd i pitch_cmd = (ecuacion slides)/gravity
             //yaw_rate =
             //thrust = m*g +m*z_vel_cmd;
+            double angle = tf::getYaw(latest_pose.pose.orientation);
+            roll_cmd = (x_vel_cmd*sin(angle) + y_vel_cmd*cos(angle))/GRAVETAT;
+            pitch_cmd = (x_vel_cmd*cos(angle) + y_vel_cmd*sin(angle))/GRAVETAT;
+            thrust = 1.5*GRAVETAT + 1.5*z_vel_cmd;
 
 			
 			// Saturate your request
