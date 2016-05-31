@@ -18,8 +18,6 @@
 #include <dynamic_reconfigure/server.h>
 #include <rotors_exercise/ControllerConfig.h>
 
-#include "pid.h"
-
 #define PI 3.14159265
 #define GRAVETAT 9.81
 
@@ -58,9 +56,61 @@ float maxRoll, maxPitch, maxThrust, maxYaw;
 tf::Vector3		body_accel;
 
 //PID variables
-Eigen::Vector4d error, previous_error,integral_error_accumulator,integral_limits(50, 50, 50, 50), delta_error;
+Eigen::Vector4d error, previous_error,integral_error_accumulator,integral_limits(0.5,0.5,0.5,0.5), delta_error;
 double latest;
 double latest_yaw = 0.0;
+/*
+ * PID
+ */
+void computeError(const tf::Vector3 setpoint_pos, const geometry_msgs::PoseStamped latest_pose, const double setpoint_yaw, const double latest_yaw, Eigen::Vector4d  &error){
+    error[0] = setpoint_pos[0] -latest_pose.pose.position.x;
+    error[1] = setpoint_pos[1] -latest_pose.pose.position.y;
+    error[2] = setpoint_pos[2] -latest_pose.pose.position.z;
+    error[3] = setpoint_yaw - latest_yaw;
+    if(error[3] > PI){
+        error[3] = error[3] - 2*PI;
+    }else if(error[3] < -PI){
+        error[3] = error[3] + 2*PI;
+    }
+    ROS_INFO_STREAM("**COMPUTE ERROR**");
+}
+
+void derivative(const Eigen::Vector4d error, const double delta_time, Eigen::Vector4d &delta_error,Eigen::Vector4d &previous_error){
+
+    delta_error[0] = (error[0] - previous_error[0])/delta_time;
+    delta_error[1] = (error[1] - previous_error[1])/delta_time;
+    delta_error[2] = (error[2] - previous_error[2])/delta_time;
+    delta_error[3] = (error[3] - previous_error[3])/delta_time;
+
+    previous_error[0] = error[0];
+    previous_error[1] = error[1];
+    previous_error[2] = error[2];
+    previous_error[3] = error[3];
+
+    ROS_INFO_STREAM("**DERIVATIVE**");
+}
+
+void integral(const Eigen::Vector4d error, const double delta_time, const Eigen::Vector4d integral_limits, Eigen::Vector4d &integral_error_accumulator){
+
+    integral_error_accumulator[0] += (error[0] * delta_time);
+    integral_error_accumulator[1] += (error[1] * delta_time);
+    integral_error_accumulator[2] += (error[2] * delta_time);
+    integral_error_accumulator[3] += (error[3] * delta_time);
+
+    for(int i = 0; i < error.rows(); i++){
+
+        if(integral_error_accumulator[i] > integral_limits[i]){
+
+            integral_error_accumulator[i] = integral_limits[i];
+        }else if(integral_error_accumulator[i] < -integral_limits[i]){
+
+            integral_error_accumulator[i] = -integral_limits[i];
+        }
+    }
+
+    ROS_INFO_STREAM("**INTEGRAL**");
+}
+
 
 void imuCallback(const sensor_msgs::ImuConstPtr& msg)
 {
@@ -108,28 +158,28 @@ void MultiDofJointTrajectoryCallback(
 void reconfigure_callback(rotors_exercise::ControllerConfig &config, uint32_t level)
 {
 	// Copy new configuration
-    // m_config = config;
+     //m_config = config;
 
-    //config.x_kp,
-    //config.x_ki,
-    //config.x_kd,
+    x_kp = config.x_kp;
+    x_ki= config.x_ki;
+    x_kd = config.x_kd;
 
-    //config.y_kp,
-    //config.y_ki,
-    //config.y_kd,
-	
-    //config.z_kp,
-    //config.z_ki,
-    //config.z_kd,
-	
-    //config.yaw_kp,
-    //config.yaw_ki,
-    //config.yaw_kd,
+    y_kp = config.y_kp;
+    y_ki = config.y_ki;
+    y_kd = config.y_kd;
 
-    // config.roll_limit;
-    // config.pitch_limit;
-    // config.thrust_limit;
-    // config.yaw_limit;
+    z_kp = config.z_kp;
+    z_ki = config.z_ki;
+    z_kd = config.z_kd;
+
+    yaw_kp = config.yaw_kp;
+    yaw_ki = config.yaw_ki;
+    yaw_kd = config.yaw_kd;
+
+    roll_limit = config.roll_limit;
+    pitch_limit = config.pitch_limit;
+    thrust_limit = config.thrust_limit;
+    yaw_limit = config.yaw_limit;
 
 	ROS_INFO (" ");
 	ROS_INFO ("Reconfigure callback have been called with new Settings ");
@@ -139,12 +189,15 @@ void reconfigure_callback(rotors_exercise::ControllerConfig &config, uint32_t le
 void timerCallback(const ros::TimerEvent& e)
 {
 	double roll, pitch, yaw;
-	if (latest_pose.header.stamp.nsec > 0.0) 
+    if (latest_pose.header.stamp.nsec > 0.0)
 	{
 		ROS_INFO ("///////////////////////////////////////");
 		
 		// ADD here any debugging you need 
-			
+        ROS_INFO_STREAM ("SETPOINT POSITION: X: " << setpoint_pos[0] << " Y: " << setpoint_pos[1] << " Z: "<< setpoint_pos[2] << " YAW: " << setpoint_yaw );
+        ROS_INFO_STREAM ("CURRENT POSITION:  X: " << latest_pose.pose.position.x << " Y: " << latest_pose.pose.position.y << " Z: "<< latest_pose.pose.position.z << " YAW: " << latest_yaw );
+        ROS_INFO_STREAM ("Errors: " << error[0] <<" " <<  error[1] <<" " << error[2] <<" " << error[3]);
+        ROS_INFO_STREAM ("P-R-Y-T " << pitch_cmd << " " << roll_cmd << " " << thrust << " " << yaw_rate);
 	}
 }
 
@@ -165,8 +218,8 @@ int main(int argc, char** argv)
 	
 	ROS_INFO("running controller");
 	
-	ros::Subscriber imu_sub   = nh.subscribe("imu",  1, &imuCallback);
-	ros::Subscriber pose_sub  = nh.subscribe("pose", 1, &poseCallback);  
+    ros::Subscriber imu_sub   = nh.subscribe("/firefly/imu",  1, &imuCallback);
+    ros::Subscriber pose_sub  = nh.subscribe("/firefly/fake_gps/pose", 1, &poseCallback);
 	
 	ros::Subscriber traj_sub  = nh.subscribe("command/trajectory", 1, &MultiDofJointTrajectoryCallback); 
 	current_index = 0; 
@@ -174,26 +227,26 @@ int main(int argc, char** argv)
 	double  x_kp, x_ki, x_kd, y_kp, y_ki, y_kd, z_kp, z_ki, z_kd, yaw_kp, yaw_ki,
 			yaw_kd, roll_limit, pitch_limit, yaw_limit, thrust_limit;
 
-	nh_params.param("x_kp", x_kp, 0.0);
+    nh_params.param("x_kp", x_kp, 1.0);
 	nh_params.param("x_ki", x_ki, 0.0);
 	nh_params.param("x_kd", x_kd, 0.0);
 
-	nh_params.param("y_kp", y_kp, 0.0);
+    nh_params.param("y_kp", y_kp, 1.0);
 	nh_params.param("y_ki", y_ki, 0.0);
 	nh_params.param("y_kd", y_kd, 0.0);
 
-	nh_params.param("z_kp", z_kp, 0.0);
+    nh_params.param("z_kp", z_kp, 1.0);
 	nh_params.param("z_ki", z_ki, 0.0);
 	nh_params.param("z_kd", z_kd, 0.0);
 
-	nh_params.param("yaw_kp", yaw_kp, 0.0);
+    nh_params.param("yaw_kp", yaw_kp, 1.0);
 	nh_params.param("yaw_ki", yaw_ki, 0.0);
 	nh_params.param("yaw_kd", yaw_kd, 0.0);
 
-	nh_params.param("roll_limit", roll_limit, 0.0);
-	nh_params.param("pitch_limit", pitch_limit, 0.0);
-	nh_params.param("thrust_limit", thrust_limit, 0.0);
-	nh_params.param("yaw_limit", yaw_limit, 0.0);
+    nh_params.param("roll_limit", roll_limit, 0.0);
+    nh_params.param("pitch_limit", pitch_limit, 0.0);
+    nh_params.param("thrust_limit", thrust_limit, 0.0);
+    nh_params.param("yaw_limit", yaw_limit, 0.0);
 
 
 
@@ -271,49 +324,23 @@ int main(int argc, char** argv)
 
             latest = now;
 
+            ROS_INFO_STREAM("1");
             //Calculate error for each component
-            error[0] = setpoint_pos[0] -latest_pose.pose.position.x;
-            error[1] = setpoint_pos[1] -latest_pose.pose.position.y;
-            error[2] = setpoint_pos[2] -latest_pose.pose.position.z;
-            error[3] = setpoint_yaw - latest_yaw;
-            if(error[3] > PI){
-                error[3] = -(error[3] - 2*PI);
-            }else if(error[3] < -PI){
-                error[3] = -(error[3] + 2*PI);
-            }
+            latest_yaw  = tf::getYaw(latest_pose.pose.orientation);
+            ROS_INFO_STREAM("latest yaw:  " << latest_yaw);
+            ROS_INFO_STREAM("setpoint_pos:  " << setpoint_pos);
+            ROS_INFO_STREAM("latest_pose:  " << latest_pose);
 
-            latest_yaw = setpoint_yaw;
+            computeError(setpoint_pos,latest_pose,setpoint_yaw, latest_yaw, error);
+
             //PROPORCIONAL  Kp*error
+            // DONE ON GET COMMANDS
 
             //INTEGRAL
-
-            integral_error_accumulator[0] += (error[0] * delta_time);
-            integral_error_accumulator[1] += (error[1] * delta_time);
-            integral_error_accumulator[2] += (error[2] * delta_time);
-            integral_error_accumulator[3] += (error[3] * delta_time);
-
-            for(int i = 0; i < error.rows(); i++){
-
-                if(integral_error_accumulator[i] > integral_limits[i]){
-
-                    integral_error_accumulator[i] = integral_limits[i];
-                }else if(integral_error_accumulator[i] < -integral_limits[i]){
-
-                    integral_error_accumulator[i] = -integral_limits[i];
-                }
-            }
-
+            integral(error, delta_time, integral_limits, integral_error_accumulator);
 
             //DERIVATIVE
-            delta_error[0] = (error[0] - previous_error[0])/delta_time;
-            delta_error[1] = (error[1] - previous_error[1])/delta_time;
-            delta_error[2] = (error[2] - previous_error[2])/delta_time;
-            delta_error[3] = (error[3] - previous_error[3])/delta_time;
-
-            previous_error[0] = error[0];
-            previous_error[1] = error[1];
-            previous_error[2] = error[2];
-            previous_error[3] = error[3];
+            derivative(error,delta_time, delta_error, previous_error);
 
             //Get commands
             x_vel_cmd = x_kp*error[0] + x_ki*integral_error_accumulator[0] + x_kd*delta_error[0];
@@ -329,21 +356,23 @@ int main(int argc, char** argv)
             //x_accel_cmd = x_vel_cmd
 
             // Map velocities (or accelerations) to angles  roll, pitch
-            //roll_cmd i pitch_cmd = (ecuacion slides)/gravity
-            //yaw_rate =
-            //thrust = m*g +m*z_vel_cmd;
-            double angle = tf::getYaw(latest_pose.pose.orientation);
-            roll_cmd = (x_vel_cmd*sin(angle) + y_vel_cmd*cos(angle))/GRAVETAT;
-            pitch_cmd = (x_vel_cmd*cos(angle) + y_vel_cmd*sin(angle))/GRAVETAT;
+            roll_cmd = (x_vel_cmd*sin(latest_yaw) + y_vel_cmd*cos(latest_yaw))/GRAVETAT;
+            pitch_cmd = (x_vel_cmd*cos(latest_yaw) + y_vel_cmd*sin(latest_yaw))/GRAVETAT;
             thrust = 1.5*GRAVETAT + 1.5*z_vel_cmd;
+
+            //Rotate TF from WORLD TO BODY FRAME ------ARDRONE
+            //tf::Vector3 vector3 (x_vel_cmd , y_vel_cmd, 0.0);
+            //vector3 = rotateZ (vector3, -tf::getYaw(latest_pose.pose.orientation));
+            //pitch_cmd = vector3[0];
+            //roll_cmd = vector3[1];
+            //thrust = z_vel_cmd;
 
 			
 			// Saturate your request
-			roll_cmd  = (roll_cmd > maxRoll)   ? maxRoll  : ((roll_cmd < -maxRoll)  ? -maxRoll  : roll_cmd);
-			pitch_cmd = (pitch_cmd > maxPitch) ? maxPitch : ((pitch_cmd < -maxPitch)? -maxPitch : pitch_cmd);
-			thrust    = (thrust > maxThrust)   ? maxThrust: ((thrust < -maxThrust)  ? -maxThrust: thrust);
-			yaw_rate  = (yaw_rate > maxYaw)    ? maxYaw   : ((yaw_rate < -maxYaw)   ? -maxYaw   : yaw_rate);
-			
+            roll_cmd  = (roll_cmd > roll_limit)   ? roll_limit  : ((roll_cmd < -roll_limit)  ? -roll_limit  : roll_cmd);
+            pitch_cmd = (pitch_cmd > pitch_limit) ? pitch_limit : ((pitch_cmd < -pitch_limit)? -pitch_limit : pitch_cmd);
+            thrust    = (thrust > thrust_limit)   ? thrust_limit: ((thrust < -thrust_limit)  ? -thrust_limit: thrust);
+            yaw_rate  = (yaw_rate > yaw_limit)    ? yaw_limit   : ((yaw_rate < -yaw_limit)   ? -yaw_limit   : yaw_rate);
 			
 			// Send to the attitude controller:
 			// roll angle [rad], pitch angle  [rad], thrust [N][rad/s]           

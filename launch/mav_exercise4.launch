@@ -13,4 +13,14 @@
 
     <node name="waypoint_publisher_file" pkg="rotors_gazebo" type="waypoint_publisher_file" output="screen" args="$(arg exercise)"/>
   </group>
+
+    <node pkg="rotors_exercise" name="estimator_node" type="estimator_node" output="screen">
+	 <param name="sigma_nx" value="0.5" />
+	 <param name="sigma_nz" value="0.5" />
+	 <param name="sigma_nu" value="0.04" />
+    </node>
+
+    <node pkg="rotors_exercise" name="path_node" type="path_node" output="screen" />
+    <node pkg="rotors_exercise" name="controller_node" type="controller_node" output="screen" />
+
 </launch>
